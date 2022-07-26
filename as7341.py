@@ -1,21 +1,47 @@
 
 """
- -*- coding:utf-8 -*-
- Original by WaveShare for Raspberry Pi
+This file licensed under the MIT License and incorporates work covered by
+the following copyright and permission notice:
 
- Adapted to Micropython by Rob Hamerling, such as:
+The MIT License (MIT)
+
+Copyright (c) 2022-2022 Rob Hamerling
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+Rob Hamerling, Version 0.0, July 2022
+
+ Original by WaveShare for Raspberry Pi, part of:
+    https://www.waveshare.com/w/upload/b/b3/AS7341_Spectral_Color_Sensor_code.7z
+
+ Adapted to Micropython, such as:
     - requiring specification of I2C interface
-    - pythonized (in stead of straight forware conversion from C to Python)
+    - pythonized (in stead of straight forward conversion from C to Python)
     - many changes of function names
     - some code optimization, esp. I2C communications
     - several other corrections and improvements!
 
- """
+"""
 
 from time import sleep_ms
 
 AS7341_I2C_ADDRESS = const(0X39)
-
 
 # registers ASTATUS, ITIME and CHx_DATA in address range 0x60--0x6F not accessed
 
@@ -41,7 +67,7 @@ AS7341_REVID       = const(0X91)
 AS7341_ID          = const(0X92)
 AS7341_STATUS      = const(0X93)
 AS7341_ASTATUS     = const(0X94)
-AS7341_CH_DATA     = const(0x95)    # start of channel counts
+AS7341_CH_DATA     = const(0x95)    # start of the 6 channel counts
 AS7341_CH0_DATA_L  = const(0X95)
 AS7341_CH0_DATA_H  = const(0X96)
 AS7341_CH1_DATA_L  = const(0X97)
@@ -91,11 +117,13 @@ AS7341_FDATA_H     = const(0XFF)
 
 INPUT              = const(0)
 OUTPUT             = const(1)
-eF1F4ClearNIR      = const(0)
-eF5F8ClearNIR      = const(1)
-eSpm               = const(0)
-eSyns              = const(1)
-eSynd              = const(3)
+F1F4CLEARNIR      = const(0)
+F5F8CLEARNIR      = const(1)
+SPM               = const(0)
+SYNS              = const(1)
+SYND              = const(3)
+
+adsz = const(16)        # with use of EEPROM as standin for AS7341
 
 class AS7341:
     def __init__(self, i2c, address=AS7341_I2C_ADDRESS):
@@ -116,11 +144,11 @@ class AS7341:
         self.NIR = 0
         self.CLEAR = 0
         self.enable(True)
-        self.measureMode = eSpm          # default mode
+        self.measureMode = SPM          # default mode
 
     def __read_byte(self, reg):
         try:
-            self.bus.readfrom_mem_into(self.address, reg, self.buffer1)
+            self.bus.readfrom_mem_into(self.address, reg, self.buffer1, addrsize=adsz)
             return self.buffer1[0]                      # return integer value
         except Exception as err:
             print("I2C read_byte at 0x{:02X}, error".format(reg), err)
@@ -128,7 +156,7 @@ class AS7341:
 
     def __read_word(self, reg):
         try:
-            self.bus.readfrom_mem_into(self.address, reg, self.buffer2)
+            self.bus.readfrom_mem_into(self.address, reg, self.buffer2, addrsize=adsz)
             return int.from_bytes(self.buffer2, 'little')   # return word value
         except Exception as err:
             print("I2C read_word at 0x{:02X}, error".format(reg), err)
@@ -137,7 +165,7 @@ class AS7341:
     def __read_all_channels(self):
         # read all channels, return list of 6 integer values
         try:
-            self.bus.readfrom_mem_into(self.address, AS7341_ASTATUS, self.buffer13)
+            self.bus.readfrom_mem_into(self.address, AS7341_ASTATUS, self.buffer13, addrsize=adsz)
             x = [int.from_bytes(self.buffer13[1 + 2*i : 3 + 2*i], 'little') for i in range(6)]
             return x
         except Exception as err:
@@ -145,68 +173,90 @@ class AS7341:
             return -1                                   # indication 'no receive'
 
     def __write_byte(self, reg, val):
-        self.buffer1[0] = val
+        self.buffer1[0] = (val & 0xFF)
         try:
-            self.bus.writeto_mem(self.address, reg, self.buffer1)
+            self.bus.writeto_mem(self.address, reg, self.buffer1, addrsize=adsz)
+            sleep_ms(10)
         except Exception as err:
             print("I2C write_byte at 0x{:02X}, error".format(reg), err)
+            return False
+        return True
+
+    def __write_word(self, reg, val):
+        self.buffer2[0] = (val & 0xFF)          # low byte
+        self.buffer2[1] = (val >> 8) & 0xFF     # high byte
+        try:
+            self.bus.writeto_mem(self.address, reg, self.buffer2, addrsize=adsz)
+            sleep_ms(10)
+        except Exception as err:
+            print("I2C write_word at 0x{:02X}, error".format(reg), err)
             return False
         return True
 
     def __write_burst(self, reg, val):
         # write an array of bytes starting at register 'reg'
         try:
-            self.bus.writeto_mem(self.address, reg, val)
+            self.bus.writeto_mem(self.address, reg, val, addrsize=adsz)
+            sleep_ms(20)
         except Exception as err:
             print("I2C write_burst at 0x{:02X}, error".format(reg), err)
             return False
         return True
 
+    def __setbank(self, bank):
+        # select registerbank (1 for regs 0x60-0x74; 0 for 0x80..0xFF)
+        data = self.__read_byte(AS7341_CFG_0)
+        if bank == 1:
+            data |= (1<<4)
+        elif bank == 0:
+            data &= (~(1<<4))
+        self.__write_byte(AS7341_CFG_0, data)
+
     def enable(self, flag):
-        # enable
+        # enable sensor
         data = self.__read_byte(AS7341_ENABLE)
         if flag == True:
-            data = data | (1<<0)
+            data |= (1<<0)
         else:
-            data = data & (~1)
+            data &= (~(1<<0))
         self.__write_byte(AS7341_ENABLE, data)
         self.__write_byte(0x00, 0x30)
 
     def enableSpectralMeasure(self, flag):
+        # select
         data = self.__read_byte(AS7341_ENABLE)
         if flag == True:
-            data = data | (1<<1)
+            data |= (1<<1)
         else:
-            data = data & (~(1<<1))
+            data &= (~(1<<1))
         self.__write_byte(AS7341_ENABLE, data)
 
     def enableSMUX(self, flag):
+        # select
         data=self.__read_byte(AS7341_ENABLE)
         if flag == True:
-            data = data | (1<<4)
+            data |= (1<<4)
         else:
-            data = data & (~(1<<4))
+            data &= (~(1<<4))
         self.__write_byte(AS7341_ENABLE, data)
 
     def enableFlickerDetection(self, flag):
+        # select
         data=self.__read_byte(AS7341_ENABLE)
         if flag == True:
-            data = data | (1<<6)
+            data |= (1<<6)
         else:
-            data = data & (~(1<<6))
+            data &= (~(1<<6))
         self.__write_byte(AS7341_ENABLE, data)
 
     def config(self, mode):
-        self.setBank(1)
-        data = self.__read_byte(AS7341_CONFIG)
-        if mode == eSpm :
-            data = (data & (~3)) | eSpm
-        elif mode == eSyns:
-            data = (data & (~3)) | eSyns
-        elif mode == eSynd:
-            data = (data & (~3)) | eSynd
-        self.__write_byte(AS7341_CONFIG, data)
-        self.setBank(0)
+        # configure the sensor for a specific mode
+        if mode in (SPM, SYNS, SYND):
+            self.__setbank(1)
+            data = self.__read_byte(AS7341_CONFIG) & (~3)
+            data |= mode
+            self.__write_byte(AS7341_CONFIG, data)
+            self.__setbank(0)
 
     def F1F4_Clear_NIR(self):
         data = b'\x30\x01\x00\x00\x00\x42\x00\x00\x50\x00\x00\x00\x20\x04\x00\x30\x01\x50\x00\x06'
@@ -222,23 +272,23 @@ class AS7341:
 
     def startMeasure(self, mode):
         data = self.__read_byte(AS7341_CFG_0)
-        data = data & (~(1<<4))
+        data &= (~(1<<4))
         self.__write_byte(AS7341_CFG_0, data)
         self.enableSpectralMeasure(False)
         self.__write_byte(0xAF, 0x10)
 
-        if mode == eF1F4ClearNIR:
+        if mode == F1F4CLEARNIR:
             self.F1F4_Clear_NIR()
-        elif mode == eF5F8ClearNIR:
+        elif mode == F5F8CLEARNIR:
             self.F5F8_Clear_NIR()
             self.enableSMUX(True)
-        if self.measureMode == eSyns:
+        if self.measureMode == SYNS:
             self.setGpioMode(INPUT)
-            self.config(eSyns)
-        elif self.measureMode == eSpm:
-            self.config(eSpm)
+            self.config(SYNS)
+        elif self.measureMode == SPM:
+            self.config(SPM)
         self.enableSpectralMeasure(True)
-        if self.measureMode == eSpm:
+        if self.measureMode == SPM:
             while (self.measureComplete() == False):
                 sleep_ms(100)
 
@@ -261,13 +311,13 @@ class AS7341:
         self.__enableFlickerDetection(False)
         if flicker == 37:
             flicker = 100
-        elif (flicker == 40):
+        elif flicker == 40:
             flicker = 0
-        elif (flicker == 42):
+        elif flicker == 42:
             flicker = 120
-        elif (flicker == 44):
+        elif flicker == 44:
             flicker = 1
-        elif (flicker == 45):
+        elif flicker == 45:
             flicker = 2
         else:
             flicker = 2
@@ -287,13 +337,14 @@ class AS7341:
         return channelData
 
     def readSpectralDataOne(self):
-        # read F1..F4 + CLEAR + NIR
-        self.__read_all_channels()
-        # self.F1, self.F2, self.F3, self.F4, self.CLEAR, self.NIR = self.__read_all_channels()
+        # obtain counts of channels F1..F4 + CLEAR + NIR
+        self.startMeasure(6)        # RobH: value 0 or 1 expected?
+        self.F1, self.F2, self.F3, self.F4, self.CLEAR, self.NIR = self.__read_all_channels()
 
     def readSpectralDataTwo(self):
-        # read F5..F8 + CLEAR + NIR
-        self.F1, self.F2, self.F3, self.F4, self.CLEAR, self.NIR = self.__read_all_channels()
+        # obtain counts of channels F5..F8 + CLEAR + NIR
+        self.startMeasure(1)
+        self.F5, self.F6, self.F7, self.F8, self.CLEAR, self.NIR = self.__read_all_channels()
 
     def setGpioMode(self, mode):
         data = self.__read_byte(AS7341_GPIO_2)
@@ -303,48 +354,41 @@ class AS7341:
             data = data & (~(1<<2))
         self.__write_byte(AS7341_GPIO_2, data)
 
-    def atime_config(self, value):
+    def setatime(self, value):
         # set number of intergration steps (range 0..255 -> 1..256 ASTEPs)
         self.__write_byte(AS7341_ATIME, value & 0xFF)
 
-    def astep_config(self, value):
+    def setastep(self, value):
         # set ASTEP size (range 0..65534 -> 2.78 usec .. 182 msec)
         if 0 <= value <= 65534:
-            self.__write_byte(AS7341_ASTEP_L, value & 0xFF)
-            self.__write_byte(AS7341_ASTEP_H, value >> 8)
+            self.__write_word(AS7341_ASTEP_L, value)
 
-    def again_config(self, value):
+    def setagain(self, value):
         # set AGAIN (range 0..10 -> gain factor 0.5 .. 512)
         if 0 <= value <= 10:
             self.__write_byte(AS7341_CFG_1, value)
 
     def enableLED(self, flag):
-        self.setBank(1)
+        # enable (PWM) control of LED
+        self.__setbank(1)
         data = self.__read_byte(AS7341_CONFIG)
         data1 = self.__read_byte(AS7341_LED)
         if flag == True:
-            data = data | (1<<3)
-            data1 = data1 | (1<<7)
+            data |= (1<<3)
+            data1 |= (1<<7)
         else:
-            data = data & (~(1<<3))
-            data1 = data1 & (~(1<<7))
-        self.__write_byte(AS7341_CONFIG, data)
+            data &= (~(1<<3))
+            data1 &= (~(1<<7))
         self.__write_byte(AS7341_LED, data1)
-        self.setBank(0);
+        self.__write_byte(AS7341_CONFIG, data)
+        self.__setbank(0);
 
-    def setBank(self, bank):
-        data = self.__read_byte(AS7341_CFG_0)
-        if bank == 1:
-            data = data | (1<<4)
-        elif bank == 0:
-            data = data & (~(1<<4))
-        self.__write_byte(AS7341_CFG_0, data)
 
     def controlLED(self, current):
         # Control current of LED in milliamperes
         # The allowed current is limited to the range 4..20 mA
         # Specification outside this range results in LED OFF
-        self.setBank(1)
+        self.__setbank(1)
         if 4 <= current <= 20:                  # within limits
             data = self.__read_byte(AS7341_CONFIG)
             data |= (1<<3)                      # activate LED control register
@@ -354,14 +398,12 @@ class AS7341:
             data == 0                           # LED off
         self.__write_byte(AS7341_LED, data)
         sleep_ms(100)
-        self.setBank(0)
+        self.__setbank(0)
 
     def interrupt(self):
         data = self.__read_byte(AS7341_STATUS)
         if data & 0x80:
             print('Spectral interrupt generation！')
-        else:
-            return
 
     def clearInterrupt(self):
         self.__write_byte(AS7341_STATUS, 0xFF)
@@ -374,27 +416,24 @@ class AS7341:
             self.__write_byte(AS7341_INTENAB, data & (~(1<<3)))
 
     def setInterruptPersistence(self, value):
-        data = value
-        self.__write_byte(AS7341_PERS, data)
-        data = self.__read_byte(AS7341_PERS)
+        self.__write_byte(AS7341_PERS, value)
+        # self.__read_byte(AS7341_PERS)
 
-    def setThresholds(self, lowThre, highThre):
-        # Set thresholds (when low <= high)
-        if not lowThre > highThre:
-            self.__write_byte(AS7341_SP_TH_L_LSB, lowThre & 0xFF)
-            self.__write_byte(AS7341_SP_TH_L_MSB, (lowThre >> 8) & 0xFF)
-            self.__write_byte(AS7341_SP_TH_H_LSB, highThre & 0xFF)
-            self.__write_byte(AS7341_SP_TH_H_MSB, (highThre >> 8) & 0xFF)
+    def setThresholds(self, lo, hi):
+        # Set thresholds (when lo < hi)
+        if lo < hi:
+            self.__write_word(AS7341_SP_TH_L_LSB, lo)
+            self.__write_word(AS7341_SP_TH_H_LSB, hi)
             sleep_ms(20)
 
     def setSpectralThresholdChannel(self, value):
         self.__write_byte(AS7341_CFG_12, value)
 
-    def getLowThreshold(self):
-        return self.__read_word(AS7341_SP_TH_LOW)
-
-    def getHighThreshold(self):
-        return self.__read_word(AS7341_SP_TH_HIGH)
+    def getThresholds(self):
+        # obtain low and high thresholds
+        lo = self.__read_word(AS7341_SP_TH_LOW)
+        hi = self.__read_word(AS7341_SP_TH_HIGH)
+        return [lo, hi]
 
     def synsINT_sel(self):
         self.__write_byte(AS7341_CONFIG, 0x05)
