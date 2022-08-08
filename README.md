@@ -1,6 +1,6 @@
 # micropython-as7341
 
-Library for AS7341
+Micropython library for AS7341
 
 Rob Hamerling, Version 0.0, July 2022
 
@@ -19,20 +19,17 @@ Adapted to Micropython, such as:
 
 This library is under construction,
 don't use it, just read it to get an idea.
-It is not yet tested with AS7341 hardware.
-Temporary adapted to test with an EEPROM only to check
-syntax and if I2C reads and writes are working as expected.
+It is not yet tested with AS7341 hardware and
+temporary adapted to test with an EEPROM only to check
+syntax and I2C reads and writes.
 
 ## Examples
-  - all_channels.py
-      read whole rangel of channels
-  - disable_all.py
-      disable whole sensor
-  - flicker.py
-      read flicker
-  - interrupt.py
-      use of interrupt
-  - pinint.py
-      use pin to trigger read-out
-  - syns.py
-      syns-mode
+
+  - all_channels.py: read whole range of channels
+  - disable_all.py: disable whole sensor
+  - flicker.py: read flicker
+  - interrupt.py: use of interrupt
+  - pinint.py: use pin to trigger read-out
+  - syns.py: syns-mode
+
+.
