@@ -7,7 +7,7 @@ from time import sleep_ms
 from machine import I2C, SoftI2C, Pin
 
 # i2c = SoftI2C(scl=Pin(27), sda=Pin(33))
-i2c = I2C(0)
+i2c = I2C(0, freq=100000)
 addrlist = " ".join(["0x{:02X}".format(x) for x in i2c.scan()])
 print("Detected devices at I2C-addresses:", addrlist)
 
@@ -17,13 +17,13 @@ if not sensor.isconnected():
     print("Failed to contact AS7341, terminating")
     sys.exit(1)
 
-sensor.measureMode = AS7341_SPM     # (abbrev. of AS7341_CONFIG_INT_MODE_SPM)
-sensor.setatime(100)                # 100 ASTEPS
-sensor.setastep(999)                # ASTEP 2.78 ms
-sensor.setagain(6)                  # factor 32 (about middle between .5 and 512)
+sensor.set_measure_mode(AS7341_MODE_SPM)
+sensor.set_atime(100)                # 100 ASTEPS
+sensor.set_astep(999)                # ASTEP = 2.78 ms
+sensor.set_again(4)                  # factor 8 (with pretty much light)
 
 def show_lowmem():
-    # print first 20 bytes of AS7341 memory
+    # debugging: print first 20 bytes of AS7341 memory
     lowmem = bytearray(20)
     i2c.readfrom_mem_into(AS7341_I2C_ADDRESS, 0, lowmem)
     print(" ".join(["{:02X}".format(lowmem[i]) for i in range(len(lowmem))]))
@@ -31,30 +31,36 @@ def show_lowmem():
 try:
     while True:
 
-        sensor.readSpectralDataOne()
+        f1,f2,f3,f4,clr,nir = sensor.read_spectral_data("F1F4CN")
         show_lowmem()
-        print('F1 (405-425nm): {:d}'.format(sensor.F1))
-        print('F2 (435-455nm): {:d}'.format(sensor.F2))
-        print('F3 (470-490nm): {:d}'.format(sensor.F3))
-        print('F4 (505-525nm): {:d}'.format(sensor.F4))
-        print('Clear: {:d}'.format(sensor.CLEAR))
-        print('NIR: {:d}'.format(sensor.NIR))
+        print('F1 (405-425nm): {:d}'.format(f1))
+        print('F2 (435-455nm): {:d}'.format(f2))
+        print('F3 (470-490nm): {:d}'.format(f3))
+        print('F4 (505-525nm): {:d}'.format(f4))
+        print('Clear: {:d}'.format(clr))
+        print('NIR: {:d}'.format(nir))
 
-        sensor.readSpectralDataTwo()
+        f5,f6,f7,f8,clr,nir = sensor.read_spectral_data("F5F8CN")
         show_lowmem()
-        print('F5 (545-565nm): {:d}'.format(sensor.F5))
-        print('F6 (580-600nm): {:d}'.format(sensor.F6))
-        print('F7 (620-640nm): {:d}'.format(sensor.F7))
-        print('F8 (670-690nm): {:d}'.format(sensor.F8))
-        print('Clear: {:d}'.format(sensor.CLEAR))
-        print('NIR: {:d}'.format(sensor.NIR))
+        print('F5 (545-565nm): {:d}'.format(f5))
+        print('F6 (580-600nm): {:d}'.format(f6))
+        print('F7 (620-640nm): {:d}'.format(f7))
+        print('F8 (670-690nm): {:d}'.format(f8))
+        print('Clear: {:d}'.format(clr))
+        print('NIR: {:d}'.format(nir))
+
+        f2,f3,f4,f5,f6,f7 = sensor.read_spectral_data("F2F7")
+        show_lowmem()
+        print('F2 (435-455nm): {:d}'.format(f2))
+        print('F3 (470-490nm): {:d}'.format(f3))
+        print('F4 (505-525nm): {:d}'.format(f4))
+        print('F5 (545-565nm): {:d}'.format(f5))
+        print('F6 (580-600nm): {:d}'.format(f6))
+        print('F7 (620-640nm): {:d}'.format(f7))
 
         print('------------------------')
-
         sleep_ms(5000)
 
-        # Adjust the brightness of the LED lamp
-        # sensor.controlLed(19)
 
 except KeyboardInterrupt:
     print("Interrupted from keyboard")

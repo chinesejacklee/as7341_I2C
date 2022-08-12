@@ -1,8 +1,9 @@
 # micropython-as7341
 
-Micropython library for AS7341
+Micropython driver with:
+    Class for AS7341: 11 Channel Multi-Spectral Digital Sensor
 
-Rob Hamerling, Version 0.0, July 2022
+Rob Hamerling, Version 0.0, August 2022
 
 Original by WaveShare for Raspberry Pi, part of:
   https://www.waveshare.com/w/upload/b/b3/AS7341_Spectral_Color_Sensor_code.7z
@@ -17,11 +18,10 @@ Adapted to Micropython, such as:
 
 ## Getting started
 
-This library is under construction,
-don't use it, just read it to get an idea.
-It is not yet tested with AS7341 hardware and
-temporary adapted to test with an EEPROM only to check
-syntax and I2C reads and writes.
+This library is under construction.
+Not all examples are working.
+Documentation should follow, for now read comments in source!
+
 
 ## Examples
 
