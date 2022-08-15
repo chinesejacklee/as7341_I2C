@@ -2,38 +2,48 @@
 # Example of sysns reading of
 #
 
+import sys
 from time import sleep_ms
-from machine import I2C, SoftI2C, Pin
+from machine import I2C, Pin
 
 # i2c = SoftI2C(scl=Pin(27), sda=Pin(33))
-i2c = I2C(0)#
-print("Detected devices at I2C-addresses:", i2c.scan())
+i2c = I2C(0)
+addrlist = " ".join(["0x{:02X}".format(x) for x in i2c.scan()])
+print("Detected devices at I2C-addresses:", addrlist)
 
-as7341 import
-sensor = as7341.AS7341(i2c, address=87)    # temp
+from as7341 import *
 
-sensor.measureMode = as7341.SYNS
-sensor.ATIME_config(100)
-sensor.ASTEP_config(999)
-sensor.AGAIN_config(6)
+sensor = AS7341(i2c)
+if not sensor.isconnected():
+    print("Failed to contact AS7341, terminating")
+    sys.exit(1)
+
+sensor.set_measure_mode(AS7341_MODE_SYNS)   #
+sensor.set_atime(100)                # 100 ASTEPS
+sensor.set_astep(999)                # ASTEP = 2.78 ms
+sensor.set_again(4)                  # factor 8 (with pretty much light)
 
 try:
+
     while True:
 
         print("Waiting for the GPIO signal...")
-        sensor.startMeasure(0)
-        while sensor.measureComplete() == 0:
+        sensor.start_measure("F2F7")
+        while not sensor.measurement_completed():
             sleep_ms(100)
-        sensor.readSpectralDataOne()
-        print("channel1(405-425nm): {:d}".format(sensor.F1))
-        print("channel2(435-455nm): {:d}".format(sensor.F2))
-        print("channel3(470-490nm): {:d}".format(sensor.F3))
-        print("channel4(505-525nm): {:d}".format(sensor.F4))
-        print("Clear: {:d}".format(sensor.CLEAR))
-        print("NIR: {:d}".format(sensor.NIR))
+        f2,f3,f4,f5,f6,f7 = sensor.get_spectral_data()
+        print("F2 (405-425nm): {:d}".format(f2))
+        print("F3 (435-455nm): {:d}".format(f3))
+        print("F4 (470-490nm): {:d}".format(f4))
+        print("F5 (505-525nm): {:d}".format(f5))
+        print('F6 (580-600nm): {:d}'.format(f6))
+        print('F7 (620-640nm): {:d}'.format(f7))
+
         print("-----------------------")
 
 except KeyboardInterrupt:
     print("Interrupted from keyboard")
+
+sensor.disable()
 
 #

@@ -29,7 +29,10 @@ THE SOFTWARE.
 """ Dictionary with specific SMUX configurations for AS7341
     See AMS Application Note AS7341_AN000666_1.01.pdf
     for detailed instructions how to configure the channel mapping.
-    To be imported by AS7341.py with:
+    The application Note can be found in one of the evaluation packages, e.g.
+    AS7341_EvalSW_Reflection_v1-26-3/Documents/application notes/SMUX/
+
+    This file should be imported by AS7341.py with:
         from as7341_smux_select import *
 """
 AS7341_SMUX_SELECT = {

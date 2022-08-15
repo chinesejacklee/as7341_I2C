@@ -1,4 +1,3 @@
-
 #
 # Example of blinking LED with different intensity
 #
@@ -13,28 +12,29 @@ addrlist = " ".join(["0x{:02X}".format(x) for x in i2c.scan()])
 print("Detected devices at I2C-addresses:", addrlist)
 
 from as7341 import *
+
 sensor = AS7341(i2c)
 if not sensor.isconnected():
     print("Failed to contact AS7341, terminating")
     sys.exit(1)
 
+def blink_led(n, freq, curr):
+    print("Blink LED {:d} times at freq {:d} Hz with {:d} mA".format(n, freq, curr))
+    for _ in range(n):
+        sensor.set_led_current(curr)    # LED on with <curr> mA
+        sleep_ms(500 // freq)           # half period
+        sensor.set_led_current(0)       # LED effectively off
+        sleep_ms(500 // freq)           # half period
+
 try:
     while True:
-        sensor.enableLED(True)
-        print("Blink LED 4 mA, 3 times")
-        for _ in range(3):
-            sensor.controlLED(4)
-            sleep_ms(500)
-            sensor.controlLED(0)
-            sleep_ms(500)
-        print("Blink LED 20 mA, 3 times")
-        for _ in range(3):
-            sensor.controlLED(20)
-            sleep_ms(500)
-            sensor.controlLED(0)
-            sleep_ms(500)
+        blink_led(2, 1, 4)              # blink 2 times at 1 Hz with 4 mA
+        blink_led(4, 2, 20)             # blink 4 times at 2 Hz with 20 mA
 
 except KeyboardInterrupt:
     print("Interrupted from keyboard")
-    sensor.controlLED(0)        # LED off
-    sensor.enableLED(False)
+
+sensor.set_led_current(0)               # LED off
+sensor.disable()
+
+#

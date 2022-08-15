@@ -2,6 +2,7 @@
 # Example of pin interrupts of the AS7341
 #
 
+import sys
 from time import sleep_ms
 from machine import I2C, SoftI2C, Pin
 
@@ -10,28 +11,33 @@ i2c = I2C(0)#
 print("Detected devices at I2C-addresses:", i2c.scan())
 
 from as7341 import *
-sensor = AS7341(i2c, address=87)    # temp
 
-intpin  = Pin(4, Pin.IN)
+sensor = AS7341(i2c)
+if not sensor.isconnected():
+    print("Failed to contact AS7341, terminating")
+    sys.exit(1)
 
-sensor.measureMode = 0
-sensor.enableSpectralInterrupt(1)
-sensor.setatime(20)
-sensor.setastep(17999)
-sensor.setagain(1)
+intpin  = Pin(4, Pin.IN)            # ESP32 pin
+sensor.set_spectral_interrupt(1)
+
+sensor.set_atime(100)               # 100 ASTEPS
+sensor.set_astep(999)               # ASTEP = 2.78 ms
+sensor.set_again(4)                 # factor 8 (with pretty much light)
 
 try:
     while True:
-        sensor.clearInterrupt()
+        sensor.clear_interrupt()
+        print("pinINT is ", "high" if intpin.value() else "low")
+        sensor.start_measure("F1F4CN")
+        _,_,_,_,clear,_ = sensor.get_spectral_data()
+        print("Clear {:d}".format(clear))
+        if sensor.check_interrupt():
+            print("Interrupt detected!")
+        else:
+            print("no interrupts ....")
         print("pinINT is ", "high" if intpin.value() else "low")
 
-        sensor.startMeasure(0)
-        sensor.readSpectralDataOne()
-        print("Clear {:d}".format(sensor.CLEAR))
-        sensor.interrupt()
-        print("pinINT is ", "high" if intpin.value() else "low")
-
-        print('-----------------------')
+        sleep_ms(3000)
 
 except KeyboardInterrupt:
     print("Interrupted from keyboard")
