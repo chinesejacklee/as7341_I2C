@@ -18,6 +18,13 @@ Adapted to Micropython, such as:
 
 ## Getting started
 
+  - Select a Micropython device with hardware I2C module
+  - Connect the AS7341 board via I2C
+  - The GPIO pin should be connected via a 10K resistor to +3.3V and via a push-button to GND.
+  - Copy as7341.py and as7341_smux_select.py to the Micropython device (e.g. ESP32)
+  - Do the same with the examples
+  - Run one or more of the examples
+
 This library is under construction.
 Not all examples are working.
 Documentation should follow, for now read comments in source!
@@ -26,10 +33,11 @@ Documentation should follow, for now read comments in source!
 ## Examples
 
   - all_channels.py: read whole range of channels
-  - disable_all.py: disable whole sensor
   - flicker.py: read flicker
+  - gpio_in_en.py: show use of GPIO pin (for input)
   - interrupt.py: use of interrupt
+  - led_blink_pwm: show control of onboard LED
   - pinint.py: use pin to trigger read-out
-  - syns.py: syns-mode
+  - syns.py: syns-mode: measurement started with GPIO transition
 
 .
