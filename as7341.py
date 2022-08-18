@@ -25,7 +25,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-Rob Hamerling, Version 0.0, July 2022
+Rob Hamerling, Version 0.0, August 2022
 
  Original by WaveShare for Raspberry Pi, part of:
     https://www.waveshare.com/w/upload/b/b3/AS7341_Spectral_Color_Sensor_code.7z
@@ -36,13 +36,14 @@ Rob Hamerling, Version 0.0, July 2022
     - added I2C read/write error detection
     - added check for connected AS7341 incl. device ID
     - some code optimization (esp. adding I2C word/block reads/writes)
+    - Replaced bit addressing like (1<<5) by symbolic name with bit mask
     - moved SMUX settings for predefined channel mappings to a dictionary
       and as a separate file to allow changes or additional configurations
       by the user without changing the driver
-    - changes of names of functions and constants
+    - several changes of names of functions and constants
       (incl. camel case -> word separators with underscores)
     - added comments, doc-strings with explanation and/or argumentation
-    - several other corrections and improvements
+    - several other improvements and some corrections
 
   Remarks:
     - Automatic Gain Control (AGC) is not supported
@@ -53,7 +54,6 @@ Rob Hamerling, Version 0.0, July 2022
 from time import sleep_ms
 
 from as7341_smux_select import *            # predefined SMUX configurations
-
 
 AS7341_I2C_ADDRESS  = const(0x39)           # I2C address of AS7341
 AS7341_ID_VALUE     = const(0x24)           # AS7341 Part Number Identification
@@ -179,12 +179,8 @@ class AS7341:
         self.__buffer1 = bytearray(1)                   # I2C I/O buffer for byte
         self.__buffer2 = bytearray(2)                   # I2C I/O buffer for word
         self.__buffer13 = bytearray(13)                 # I2C I/O buffer for ASTATUS + 6 channels
-        self.disable()                                  # power-off ('reset')
-        sleep_ms(50)                                    # quisce
-        self.enable()                                   # (only) power-on
-        sleep_ms(50)                                    # settle
-        self.__measuremode = AS7341_MODE_SPM            # default mode
-        self.__connected = self.__verify_connection()   # check AS7341 presence
+        self.__measuremode = AS7341_MODE_SPM            # default mesurement mode
+        self.__connected = self.__verify_connection()   # check if AS7341 (ID) present
         if self.__connected:
             self.set_measure_mode(self.__measuremode)   # configure chip
 
@@ -195,7 +191,7 @@ class AS7341:
         """ read byte, return byte (integer) value """
         try:
             self.__bus.readfrom_mem_into(self.__address, reg, self.__buffer1)
-            return self.__buffer1[0]                      # return integer value
+            return self.__buffer1[0]                    # return integer value
         except Exception as err:
             print("I2C read_byte at 0x{:02X}, error".format(reg), err)
             return -1                                   # indication 'no receive'
@@ -259,7 +255,11 @@ class AS7341:
 
 
     def __verify_connection(self):
-        """ Check if AS7341 is connected """
+        """ Cycle power and check if AS7341 is connected """
+        self.disable()                          # power-off ('reset')
+        sleep_ms(50)                            # quisce
+        self.enable()                           # (only) power-on
+        sleep_ms(50)                            # settle
         id = self.__read_byte(AS7341_ID)        # obtain Part Number ID
         if id < 0:                              # read error
             print("Failed to contact AS7341 at I2C address 0x{:02X}".format(self.__address))
@@ -274,10 +274,10 @@ class AS7341:
 
     def __modify_reg(self, reg, mask, flag=True):
         """ modify <reg> with <mask>
-            <flag> True  means 'or' with mask ('set')
-            <flag> False means 'and' with inverted mask ('reset')
+            <flag> True  means 'or' with <mask> ('set')
+            <flag> False means 'and' with inverted <mask> ('reset')
             Note: When <reg> is in region 0x60-0x74
-                  bank is supposed be set on beforehand
+                  bank is supposed be set by user
             """
         data = self.__read_byte(reg)    # read <reg>
         if flag:
@@ -393,7 +393,9 @@ class AS7341:
 
 
     def get_flicker_frequency(self):
-        """ determine flicker frequency in Hz. Returns 100, 120 or 0 """
+        """ Determine flicker frequency in Hz. Returns 100, 120 or 0
+            Integration time and gain for flicker detection is the same as for
+            other channels, the dedicated FD_TIME and FD_GAIN are not supported """
         data = self.__read_byte(AS7341_CFG_0)
         data = data & (~AS7341_CFG_0_LOW_POWER)     # escape from low power mode
         self.__write_byte(AS7341_CFG_0, data)
@@ -462,24 +464,64 @@ class AS7341:
         print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
         return self.__read_byte(AS7341_GPIO_2) & AS7341_GPIO_2_GPIO_IN
 
-
-    def set_atime(self, value):
-        """ set number of integration steps (range 0..255 -> 1..256 ASTEPs) """
-        self.__write_byte(AS7341_ATIME, value & 0xFF)
-
-
     def set_astep(self, value):
         """ set ASTEP size (range 0..65534 -> 2.78 usec .. 182 msec) """
         if 0 <= value <= 65534:
             self.__write_word(AS7341_ASTEP, value)
 
 
-    def set_again(self, value):
-        """ set AGAIN (range 0..10 -> gain factor 0.5 .. 512)
+    def set_atime(self, value):
+        """ set number of integration steps (range 0..255 -> 1..256 ASTEPs) """
+        self.__write_byte(AS7341_ATIME, value & 0xFF)
+
+
+    def get_integration_time(self):
+        """ return actual total integration time (atime * astep) in msec
+            (valid for SPM and SYNS measurement mode) """
+        return ((self.__read_word(AS7341_ASTEP) + 1) *
+                (self.__read_byte(AS7341_ATIME) + 1) * 2.78 / 1000)
+
+
+    def set_again(self, code):
+        """ set AGAIN (code in range 0..10 -> gain factor 0.5 .. 512)
             value     0    1    2    3    4    5      6     7      8      9     10
             gain:  *0.5 | *1 | *2 | *4 | *8 | *16 | *32 | *64 | *128 | *256 | *512 """
-        if 0 <= value <= 10:
-            self.__write_byte(AS7341_CFG_1, value)
+        if 0 <= code <= 10:
+            self.__write_byte(AS7341_CFG_1, code)
+
+
+    def get_again(self):
+        """ obtain actual gain code (in range 0 .. 10) """
+        return self.__read_byte(AS7341_CFG_1)
+
+
+    def set_again_factor(self, factor):
+        """ 'inverse' of 'set_again': gain factor -> code 0 .. 10
+            <factor> is rounded down to nearest power of 2 (in range 0.5 .. 512) """
+        code = 10
+        gain = 512
+        while gain > factor < gain and code > 0:
+            gain /= 2
+            code -= 1
+        # print("factor", factor, "gain", gain, "code", code)
+        self.__write_byte(AS7341_CFG_1, code)
+
+
+    def get_again_factor(self):
+        """ obtain actual gain factor (in range 0.5 .. 512) """
+        return 2 ** (self.__read_byte(AS7341_CFG_1) - 1)
+
+
+    def set_wen(self, flag=True):
+        """ enable (flag=True) or otherwise disable use of WTIME (auto re-start) """
+        self.__modify_reg(AS7341_ENABLE, AS7341_ENABLE_WEN, flag)
+
+
+    def set_wtime(self, wtime):
+        """ set WTIME when auto-re-start is desired (in range 0 .. 0xFF)
+            0 -> 2.78ms, 0xFF -> 711.7 ms
+            Note: The WEN bit in ENABLE should be set as well: set_wen() """
+        self.__write_byte(AS7341_WTIME, wtime)
 
 
     def set_led_current(self, current):

@@ -19,15 +19,11 @@ if not sensor.isconnected():
     sys.exit(1)
 
 sensor.set_measure_mode(AS7341_MODE_SPM)
-sensor.set_atime(100)                # 100 ASTEPS
-sensor.set_astep(999)                # ASTEP = 2.78 ms
-sensor.set_again(4)                  # factor 8 (with pretty much light)
+sensor.set_atime(29)                # => 30 ASTEPS
+sensor.set_astep(599)               # => 0.6 ms per step
+sensor.set_again(4)                 # factor 8 (with pretty much light)
 
-def show_lowmem():
-    # debugging: print first 20 bytes of AS7341 memory
-    lowmem = bytearray(20)
-    i2c.readfrom_mem_into(AS7341_I2C_ADDRESS, 0, lowmem)
-    print(" ".join(["{:02X}".format(lowmem[i]) for i in range(len(lowmem))]))
+print("Integration time:", sensor.get_integration_time(), "msec")
 
 try:
     while True:

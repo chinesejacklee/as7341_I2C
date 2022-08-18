@@ -11,7 +11,7 @@ Original by WaveShare for Raspberry Pi, part of:
 Adapted to Micropython, such as:
   - requiring specification of I2C interface
   - pythonized (in stead of straight forward conversion from C to Python)
-  - many changes of function names
+  - many changes of function names, several new functions added
   - some code optimization, esp. I2C communications
   - several other corrections and improvements
 
