@@ -9,31 +9,34 @@ Original by WaveShare for Raspberry Pi, part of:
   https://www.waveshare.com/w/upload/b/b3/AS7341_Spectral_Color_Sensor_code.7z
 
 Adapted to Micropython, such as:
-  - requiring specification of I2C interface
-  - pythonized (in stead of straight forward conversion from C to Python)
-  - many changes of function names, some functions removed, new functions added
-  - code optimization, esp. I2C communications
-  - several code corrections and improvements
-  - added doc-strings and comments
+  - Specification of active I2C interface is now required.
+  - Pythonized (in stead of straight forward conversion from C to Python).
+  - Many function names have been changed,
+    some functions removed, new functions added.
+  - Code optimized, esp. I2C communications.
+  - Code corrected, readability improved.
+  - Doc-strings and comments added.
 
 
 ## Getting started
 
-  - Select a Micropython device with hardware I2C module
-  - Connect the AS7341 board via I2C,
-    depending on the choice of the I2C interface
-    the examples may require a slight modification.
-  - Copy as7341.py and as7341_smux_select.py (or cross-compiled .mpy versions)
-    to the Micropython device (e.g. ESP32)
-  - Do the same with the examples
-  - Run one or more of the examples
-    For the examples 'syns', 'pinint' and 'gpio_in_en' the GPIO pin should be
-    connected to +3.3V via a 10K resistor and via a normally open push-button to GND.
+  - Select a Micropython device with hardware I2C module, e.g. ESP32.
+  - Connect the AS7341 board via an I2C interface (hardware or software).
+    Depending on the choice of the I2C interface
+    the examples may require a minor modification.
+  - Copy as7341.py and as7341_smux_select.py
+    (or cross-compiled .mpy versions)
+    to the Micropython device.
+  - Do the same with the examples.
+  - Run one or more of the examples.
+    For the examples 'syns', 'pinint' and 'gpio_in_en' the GPIO pin
+    should be connected to +3.3V via a 10K resistor and via
+    a normally open push-button to GND.
 
 
-This repository is under construction.
+This repository is **work in progress**.
 Not sure that all examples are working!
-More/better documentation should follow, for now read the comments in source!
+More/better documentation should follow, for now read the comments in the sources!
 
 
 ## Examples
