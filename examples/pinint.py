@@ -20,8 +20,8 @@ if not sensor.isconnected():
 intpin  = Pin(4, Pin.IN)            # ESP32 pin
 sensor.set_spectral_interrupt(1)
 
-sensor.set_atime(100)               # 100 ASTEPS
-sensor.set_astep(999)               # ASTEP = 2.78 ms
+sensor.set_atime(29)                # 30 ASTEPS
+sensor.set_astep(599)               # 1.67 ms
 sensor.set_again(4)                 # factor 8 (with pretty much light)
 
 try:

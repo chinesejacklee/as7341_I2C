@@ -1,5 +1,6 @@
 #
 # Example of reading all channels of the AS7341
+# with different channel-mappings
 #
 
 import sys
@@ -19,17 +20,16 @@ if not sensor.isconnected():
     sys.exit(1)
 
 sensor.set_measure_mode(AS7341_MODE_SPM)
-sensor.set_atime(29)                # => 30 ASTEPS
-sensor.set_astep(599)               # => 0.6 ms per step
+sensor.set_atime(29)                # 30 ASTEPS
+sensor.set_astep(599)               # 1.67 ms
 sensor.set_again(4)                 # factor 8 (with pretty much light)
 
 print("Integration time:", sensor.get_integration_time(), "msec")
 
 try:
     while True:
-        sensor.start_measure("F1F4CN")      # implicit wait for completion
-        f1,f2,f3,f4,clr,nir = sensor.get_spectral_data()   # results
-        # show_lowmem()
+        sensor.start_measure("F1F4CN")
+        f1,f2,f3,f4,clr,nir = sensor.get_spectral_data()
         print('F1 (405-425nm): {:d}'.format(f1))
         print('F2 (435-455nm): {:d}'.format(f2))
         print('F3 (470-490nm): {:d}'.format(f3))
@@ -39,7 +39,6 @@ try:
 
         sensor.start_measure("F5F8CN")
         f5,f6,f7,f8,clr,nir = sensor.get_spectral_data()
-        # show_lowmem()
         print('F5 (545-565nm): {:d}'.format(f5))
         print('F6 (580-600nm): {:d}'.format(f6))
         print('F7 (620-640nm): {:d}'.format(f7))
@@ -49,7 +48,6 @@ try:
 
         sensor.start_measure("F2F7")
         f2,f3,f4,f5,f6,f7 = sensor.get_spectral_data()
-        # show_lowmem()
         print('F2 (435-455nm): {:d}'.format(f2))
         print('F3 (470-490nm): {:d}'.format(f3))
         print('F4 (505-525nm): {:d}'.format(f4))

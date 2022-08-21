@@ -19,8 +19,8 @@ if not sensor.isconnected():
 
 sensor.set_measure_mode(AS7341_MODE_SPM)
 sensor.set_spectral_interrupt(1)
-sensor.set_atime(100)
-sensor.set_astep(999)
+sensor.set_atime(29)
+sensor.set_astep(599)
 sensor.set_again(4)
 sensor.set_thresholds(300, 10000)
 sensor.set_interrupt_persistence(0)

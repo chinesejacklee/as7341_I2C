@@ -173,7 +173,8 @@ class AS7341:
 
     def __init__(self, i2c, addr=AS7341_I2C_ADDRESS):
         """ specification of active I2C object is mandatory
-            specification of I2C address of AS7341 is optional """
+            specification of I2C address of AS7341 is optional
+        """
         self.__bus = i2c
         self.__address = addr
         self.__buffer1 = bytearray(1)                   # I2C I/O buffer for byte
@@ -217,9 +218,9 @@ class AS7341:
             return []                                   # empty list
 
 
-    def __write_byte(self, reg, val):
+    def __write_byte(self, reg, value):
         """ write a single byte to the specified register """
-        self.__buffer1[0] = (val & 0xFF)
+        self.__buffer1[0] = (value & 0xFF)
         try:
             self.__bus.writeto_mem(self.__address, reg, self.__buffer1)
             sleep_ms(10)
@@ -229,11 +230,12 @@ class AS7341:
         return True
 
 
-    def __write_word(self, reg, val):
+    def __write_word(self, reg, value):
         """ write a word as 2 bytes (little endian encoding)
-            to adresses <reg> + 0 and <reg> + 1 """
-        self.__buffer2[0] = (val & 0xFF)          # low byte
-        self.__buffer2[1] = (val >> 8) & 0xFF     # high byte
+            to adresses <reg> + 0 and <reg> + 1
+        """
+        self.__buffer2[0] = (value & 0xFF)          # low byte
+        self.__buffer2[1] = (value >> 8) & 0xFF     # high byte
         try:
             self.__bus.writeto_mem(self.__address, reg, self.__buffer2)
             sleep_ms(20)
@@ -243,10 +245,10 @@ class AS7341:
         return True
 
 
-    def __write_burst(self, reg, val):
+    def __write_burst(self, reg, value):
         """ write an array of bytes to consucutive addresses starting <reg> """
         try:
-            self.__bus.writeto_mem(self.__address, reg, val)
+            self.__bus.writeto_mem(self.__address, reg, value)
             sleep_ms(100)
         except Exception as err:
             print("I2C write_burst at 0x{:02X}, error".format(reg), err)
@@ -265,20 +267,21 @@ class AS7341:
             print("Failed to contact AS7341 at I2C address 0x{:02X}".format(self.__address))
             return False
         else:
-            if not (id & (~3)) == AS7341_ID_VALUE:  # ID in bits 7..2 bits
+            if not (id & (~0x03)) == AS7341_ID_VALUE:  # ID in bits 7..2 bits
                 print("No AS7341: ID = 0x{:02X}, expected 0x{:02X}".format(id, AS7341_ID_VALUE))
                 return False
-            else:
-                return True
+        return True
 
 
     def __modify_reg(self, reg, mask, flag=True):
-        """ modify <reg> with <mask>
-            <flag> True  means 'or' with <mask> ('set')
-            <flag> False means 'and' with inverted <mask> ('reset')
-            Note: When <reg> is in region 0x60-0x74
-                  bank is supposed be set by user
-            """
+        """ modify register <reg> with <mask>
+            <flag> True  means 'or' with <mask> : set the bit(s)
+            <flag> False means 'and' with inverted <mask> : reset the bit(s)
+            Notes: 1. Works only with '1' bits in <mask>
+                      (in most cases <mask> contains a single 1-bit!)
+                   2. When <reg> is in region 0x60-0x74
+                      bank 1 is supposed be set by caller
+        """
         data = self.__read_byte(reg)    # read <reg>
         if flag:
             data |= mask
@@ -288,7 +291,14 @@ class AS7341:
 
 
     def __set_bank(self, bank=1):
-        """ select registerbank (1 for regs 0x60-0x74) """
+        """ select registerbank
+            <bank> 1 for access to regs 0x60-0x74
+            <bank> 0 for access to regs 0x80-0xFF
+            Note: It seems that reg CFG_0 (0x93) is accessible
+                  even when REG_BANK bit is set for 0x60-0x74,
+                  otherwise it wouldn't be possible to reset REG_BANK
+                  Datasheet isn't clear about this.
+        """
         if bank in (0,1):
             self.__modify_reg(AS7341_CFG_0, AS7341_CFG_0_REG_BANK, bank==1)
 
@@ -302,8 +312,8 @@ class AS7341:
 
     def disable(self):
         """ disable all functions and power off """
-        self.__set_bank(1)
-        self.__write_byte(AS7341_CONFIG, 0x00)   # INT, LED off, SPM mode
+        self.__set_bank(1)                      # CONFIG register is in bank 1
+        self.__write_byte(AS7341_CONFIG, 0x00)  # INT, LED off, SPM mode
         self.__set_bank(0)
         self.__write_byte(AS7341_ENABLE, 0x00)  # power off
 
@@ -315,9 +325,7 @@ class AS7341:
 
     def measurement_completed(self):
         """ check if measurement completed (return True) or otherwise return False """
-        status = self.__read_byte(AS7341_STATUS_2)
-        return True if (status & AS7341_STATUS_2_AVALID) else False
-
+        return bool(self.__read_byte(AS7341_STATUS_2) & AS7341_STATUS_2_AVALID)
 
     def set_spectral_measurement(self, flag=True):
         """ enable (flag == True) spectral measurement or otherwise disable it """
@@ -331,20 +339,23 @@ class AS7341:
 
     def set_measure_mode(self, mode=AS7341_CONFIG_INT_MODE_SPM):
         """ configure the AS7341 for a specific interrupt mode
-            when interrupt needed it must be configured separately """
+            when interrupt needed it must be configured separately
+        """
         if mode in (AS7341_CONFIG_INT_MODE_SPM,     # meas. started by SP_EN
                     AS7341_CONFIG_INT_MODE_SYNS,    # meas. started by GPIO
                     AS7341_CONFIG_INT_MODE_SYND):   # meas. started by GPIO + EDGE
-            self.__set_bank(1)                       # CONFIG register is in bank 1
+            self.__set_bank(1)                      # CONFIG register is in bank 1
             self.__measuremode = self.__read_byte(AS7341_CONFIG) & (~3)  # discard current mode
-            self.__measuremode |= mode                # set new mode
+            self.__measuremode |= mode              # set new mode
             self.__write_byte(AS7341_CONFIG, self.__measuremode)
             self.__set_bank(0)
 
 
     def channel_select(self, selection):
         """ select one from a series of predefined SMUX configurations
-            <selection> should be a key in dictionary AS7341_SMUX_SELECT """
+            <selection> should be a key in dictionary AS7341_SMUX_SELECT
+            20 bytes of memory starting from address 0 will be overwritten.
+        """
         if selection in AS7341_SMUX_SELECT:
             self.__write_burst(0x00, AS7341_SMUX_SELECT[selection])
         else:
@@ -353,9 +364,7 @@ class AS7341:
 
     def start_measure(self, selection):
         """ select SMUX configuration, prepare and start measurement """
-        data = self.__read_byte(AS7341_CFG_0)
-        data &= (~AS7341_CFG_0_LOW_POWER)           # escape from low-power mode
-        self.__write_byte(AS7341_CFG_0, data)
+        self.__modify_reg(AS7341_CFG_0, AS7341_CFG_0_LOW_POWER, False)  # no low power
         self.set_spectral_measurement(False)       # quiesce
         self.__write_byte(AS7341_CFG_6, AS7341_CFG_6_SMUX_CMD_WRITE) # write mode
         if self.__measuremode == AS7341_CONFIG_INT_MODE_SPM:
@@ -373,7 +382,10 @@ class AS7341:
 
     def get_channel_data(self, channel):
         """ read count of a single channel (channel in range 0..5)
-            without measurement, just read count of one channel """
+            with or without measurement, just read count of one channel
+            contents depend on previous selection with 'start_measure'
+            auto-zero feature may result in value 0!
+        """
         data = 0                            # default
         if 0 <= channel <= 5:
             data = self.__read_word(AS7341_CH_DATA + channel * 2)
@@ -383,7 +395,8 @@ class AS7341:
     def get_spectral_data(self):
         """ obtain counts of all channels
             return a tuple of 6 counts (integers) of the channels
-            contents depend on previous selection with 'start_measure' """
+            contents depend on previous selection with 'start_measure'
+        """
         return self.__read_all_channels()   # return a tuple!
 
 
@@ -395,38 +408,37 @@ class AS7341:
     def get_flicker_frequency(self):
         """ Determine flicker frequency in Hz. Returns 100, 120 or 0
             Integration time and gain for flicker detection is the same as for
-            other channels, the dedicated FD_TIME and FD_GAIN are not supported """
-        data = self.__read_byte(AS7341_CFG_0)
-        data = data & (~AS7341_CFG_0_LOW_POWER)     # escape from low power mode
-        self.__write_byte(AS7341_CFG_0, data)
+            other channels, the dedicated FD_TIME and FD_GAIN are not supported
+        """
+        self.__modify_reg(AS7341_CFG_0, AS7341_CFG_0_LOW_POWER, False)  # no low power
         self.set_spectral_measurement(False)
         self.__write_byte(AS7341_CFG_6, AS7341_CFG_6_SMUX_CMD_WRITE)
         self.channel_select("FD")                   # select flicker detection only
         self.set_smux(True)
         self.set_spectral_measurement(True)
         self.set_flicker_detection(True)
-        for _ in range(10):                 # limited time
+        for _ in range(10):                 # limited wait for completion
             fd_status = self.__read_byte(AS7341_FD_STATUS)
             if fd_status & AS7341_FD_STATUS_FD_MEAS_VALID:
                 break
             # print("Flicker measurement not completed")
             sleep_ms(100)
-        else:
-            print("Flicker detection failed")
+        else:                               # timeout
+            print("Flicker measurement failed")
             return 0
-        for _ in range(10):                 # limited time!
+        for _ in range(10):                 # limited wait for calculation
             fd_status = self.__read_byte(AS7341_FD_STATUS)
             if ((fd_status & AS7341_FD_STATUS_FD_100_VALID) or
                 (fd_status & AS7341_FD_STATUS_FD_120_VALID)):
                 break
             # print("Flicker calculation not completed")
             sleep_ms(100)
-        else:
-            print("Flicker calculation failed")
+        else:                               # timeout
+            print("Flicker frequency calculation failed")
             return 0
-        print("FD_STATUS", "0x{:02X}".format(fd_status))
+        # print("FD_STATUS", "0x{:02X}".format(fd_status))
         self.set_flicker_detection(False)           # disable
-        self.__write_byte(AS7341_FD_STATUS, 0x3F)   # clear all FD STATUS bits
+        self.__write_byte(AS7341_FD_STATUS, 0x3C)   # clear all FD STATUS bits
         if ((fd_status & AS7341_FD_STATUS_FD_100_VALID) and
             (fd_status & AS7341_FD_STATUS_FD_100HZ)):
             return 100
@@ -439,7 +451,7 @@ class AS7341:
     def set_gpio_mode(self, mode):
         """ Configure mode of GPIO pin.
             Allow only input-enable or output (with or without inverted)
-            specify 0 to reset the mode of the GPIO pin.
+            specify 0x00 to reset the mode of the GPIO pin.
             Notes: 1. It seems that GPIO_INV bit must be set
                       together with GPIO_IN_EN.
                       Proof: Use a pull-up resistor between GPIO and 3.3V:
@@ -447,12 +459,14 @@ class AS7341:
                        - when program started (GPIO_IN_EN=1) GPIO becomes low
                        - when also GPIO_INV=1 GPIO behaves normally
                       Maybe it is a quirk of the used test-board.
-                   2. GPIO output is not tested (not desribed in datasheet)
+                   2. GPIO output is not tested
+                      (dataset lacks info how to set/reset GPIO)
         """
-        if mode in (0,
+        if mode in (0x00,
                     AS7341_GPIO_2_GPIO_OUT,
+                    AS7341_GPIO_2_GPIO_OUT | AS7341_GPIO_2_GPIO_INV,
                     AS7341_GPIO_2_GPIO_IN_EN,
-                    AS7341_GPIO_2_GPIO_OUT | AS7341_GPIO_2_GPIO_INV):
+                    AS7341_GPIO_2_GPIO_IN_EN | AS7341_GPIO_2_GPIO_INV):
             if mode == AS7341_GPIO_2_GPIO_IN_EN:    # input mode
                 mode |= AS7341_GPIO_2_GPIO_INV      # add 'inverted'
             self.__write_byte(AS7341_GPIO_2, mode)
@@ -460,9 +474,11 @@ class AS7341:
 
     def get_gpio_value(self):
         """ Determine GPIO value (when GPIO enabled for IN_EN)
-            returns 0 (low voltage) or 1 (high voltage) """
-        print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
+            returns 0 (low voltage) or 1 (high voltage)
+        """
+        # print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
         return self.__read_byte(AS7341_GPIO_2) & AS7341_GPIO_2_GPIO_IN
+
 
     def set_astep(self, value):
         """ set ASTEP size (range 0..65534 -> 2.78 usec .. 182 msec) """
@@ -472,12 +488,13 @@ class AS7341:
 
     def set_atime(self, value):
         """ set number of integration steps (range 0..255 -> 1..256 ASTEPs) """
-        self.__write_byte(AS7341_ATIME, value & 0xFF)
+        self.__write_byte(AS7341_ATIME, value)
 
 
     def get_integration_time(self):
         """ return actual total integration time (atime * astep) in msec
-            (valid for SPM and SYNS measurement mode) """
+            (valid for SPM and SYNS measurement mode)
+        """
         return ((self.__read_word(AS7341_ASTEP) + 1) *
                 (self.__read_byte(AS7341_ATIME) + 1) * 2.78 / 1000)
 
@@ -485,7 +502,8 @@ class AS7341:
     def set_again(self, code):
         """ set AGAIN (code in range 0..10 -> gain factor 0.5 .. 512)
             value     0    1    2    3    4    5      6     7      8      9     10
-            gain:  *0.5 | *1 | *2 | *4 | *8 | *16 | *32 | *64 | *128 | *256 | *512 """
+            gain:  *0.5 | *1 | *2 | *4 | *8 | *16 | *32 | *64 | *128 | *256 | *512
+        """
         if 0 <= code <= 10:
             self.__write_byte(AS7341_CFG_1, code)
 
@@ -497,7 +515,8 @@ class AS7341:
 
     def set_again_factor(self, factor):
         """ 'inverse' of 'set_again': gain factor -> code 0 .. 10
-            <factor> is rounded down to nearest power of 2 (in range 0.5 .. 512) """
+            <factor> is rounded down to nearest power of 2 (in range 0.5 .. 512)
+        """
         code = 10
         gain = 512
         while gain > factor < gain and code > 0:
@@ -520,7 +539,8 @@ class AS7341:
     def set_wtime(self, wtime):
         """ set WTIME when auto-re-start is desired (in range 0 .. 0xFF)
             0 -> 2.78ms, 0xFF -> 711.7 ms
-            Note: The WEN bit in ENABLE should be set as well: set_wen() """
+            Note: The WEN bit in ENABLE should be set as well: set_wen()
+        """
         self.__write_byte(AS7341_WTIME, wtime)
 
 
@@ -528,15 +548,16 @@ class AS7341:
         """ Control current of onboard LED in milliamperes
             LED-current is (here) limited to the range 4..20 mA
             use only even numbers (4,6,8,... etc)
-            Specification outside this range results in LED OFF """
-        self.__set_bank(1)
-        if 4 <= current <= 20:                  # within limits: 4..20 mA
+            Specification outside this range results in LED OFF
+        """
+        self.__set_bank(1)                  # CONFIG and LED registers in bank 1
+        if 4 <= current <= 20:              # within limits: 4..20 mA
             self.__modify_reg(AS7341_CONFIG, AS7341_CONFIG_LED_SEL, True)
             # print("Reg. CONFIG (0x70) now 0x{:02X}".format(self.__read_byte(0x70)))
             data = AS7341_LED_LED_ACT + ((current - 4) // 2)  # LED on with PWM
         else:
             self.__modify_reg(AS7341_CONFIG, AS7341_CONFIG_LED_SEL, False)
-            data = 0                           # LED off, PWM 0
+            data = 0                        # LED off, PWM 0
         self.__write_byte(AS7341_LED, data)
         # print("reg 0x74 (LED) now 0x{:02X}".format(self.__read_byte(0x74)))
         self.__set_bank(0)
@@ -549,8 +570,7 @@ class AS7341:
         if data & AS7341_STATUS_ASAT:
             print('Spectral interrupt generation！')
             return True
-        else:
-            return False
+        return False
 
 
     def clear_interrupt(self):
@@ -592,7 +612,7 @@ class AS7341:
 
     def set_syns_int(self):
         """ select SYNS mode and signal SYNS interrupt on Pin INT """
-        self.__set_bank(1)           # CONFIG register is in bank 1
+        self.__set_bank(1)                  # CONFIG register is in bank 1
         self.__write_byte(AS7341_CONFIG, AS7341_CONFIG_INT_SEL | AS7341_CONFIG_INT_MODE_SYNS)
         self.__set_bank(0)
 
