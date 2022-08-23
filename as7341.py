@@ -177,13 +177,11 @@ class AS7341:
         """
         self.__bus = i2c
         self.__address = addr
-        self.__buffer1 = bytearray(1)                   # I2C I/O buffer for byte
-        self.__buffer2 = bytearray(2)                   # I2C I/O buffer for word
-        self.__buffer13 = bytearray(13)                 # I2C I/O buffer for ASTATUS + 6 channels
-        self.__measuremode = AS7341_MODE_SPM            # default mesurement mode
-        self.__connected = self.__verify_connection()   # check if AS7341 (ID) present
-        if self.__connected:
-            self.set_measure_mode(self.__measuremode)   # configure chip
+        self.__buffer1 = bytearray(1)           # I2C I/O buffer for byte
+        self.__buffer2 = bytearray(2)           # I2C I/O buffer for word
+        self.__buffer13 = bytearray(13)         # I2C I/O buffer ASTATUS + 6 counts
+        self.__measuremode = AS7341_MODE_SPM    # default measurement mode
+        self.__connected = self.reset()         # recycle power, check AS7341 presence
 
 
     """ --------- 'private' functions ----------- """
@@ -256,23 +254,6 @@ class AS7341:
         return True
 
 
-    def __verify_connection(self):
-        """ Cycle power and check if AS7341 is connected """
-        self.disable()                          # power-off ('reset')
-        sleep_ms(50)                            # quisce
-        self.enable()                           # (only) power-on
-        sleep_ms(50)                            # settle
-        id = self.__read_byte(AS7341_ID)        # obtain Part Number ID
-        if id < 0:                              # read error
-            print("Failed to contact AS7341 at I2C address 0x{:02X}".format(self.__address))
-            return False
-        else:
-            if not (id & (~0x03)) == AS7341_ID_VALUE:  # ID in bits 7..2 bits
-                print("No AS7341: ID = 0x{:02X}, expected 0x{:02X}".format(id, AS7341_ID_VALUE))
-                return False
-        return True
-
-
     def __modify_reg(self, reg, mask, flag=True):
         """ modify register <reg> with <mask>
             <flag> True  means 'or' with <mask> : set the bit(s)
@@ -323,9 +304,30 @@ class AS7341:
         return self.__connected
 
 
+    def reset(self):
+        """ Cycle power and check if AS7341 is (re-)connected
+            When connected set (restore) measurement mode
+        """
+        self.disable()                          # power-off ('reset')
+        sleep_ms(50)                            # quisce
+        self.enable()                           # (only) power-on
+        sleep_ms(50)                            # settle
+        id = self.__read_byte(AS7341_ID)        # obtain Part Number ID
+        if id < 0:                              # read error
+            print("Failed to contact AS7341 at I2C address 0x{:02X}".format(self.__address))
+            return False
+        else:
+            if not (id & (~0x03)) == AS7341_ID_VALUE:  # ID in bits 7..2 bits
+                print("No AS7341: ID = 0x{:02X}, expected 0x{:02X}".format(id, AS7341_ID_VALUE))
+                return False
+        self.set_measure_mode(self.__measuremode)   # configure chip
+        return True
+
+
     def measurement_completed(self):
         """ check if measurement completed (return True) or otherwise return False """
         return bool(self.__read_byte(AS7341_STATUS_2) & AS7341_STATUS_2_AVALID)
+
 
     def set_spectral_measurement(self, flag=True):
         """ enable (flag == True) spectral measurement or otherwise disable it """
@@ -338,16 +340,17 @@ class AS7341:
 
 
     def set_measure_mode(self, mode=AS7341_CONFIG_INT_MODE_SPM):
-        """ configure the AS7341 for a specific interrupt mode
+        """ configure the AS7341 for a specific measurement mode
             when interrupt needed it must be configured separately
         """
         if mode in (AS7341_CONFIG_INT_MODE_SPM,     # meas. started by SP_EN
                     AS7341_CONFIG_INT_MODE_SYNS,    # meas. started by GPIO
                     AS7341_CONFIG_INT_MODE_SYND):   # meas. started by GPIO + EDGE
+            self.__measuremode = mode               # store new measurement mode
             self.__set_bank(1)                      # CONFIG register is in bank 1
-            self.__measuremode = self.__read_byte(AS7341_CONFIG) & (~3)  # discard current mode
-            self.__measuremode |= mode              # set new mode
-            self.__write_byte(AS7341_CONFIG, self.__measuremode)
+            data = self.__read_byte(AS7341_CONFIG) & (~3)  # discard 2 LSbs (mode)
+            data |= mode                            # insert new mode
+            self.__write_byte(AS7341_CONFIG, data)  # modify measurement mode
             self.__set_bank(0)
 
 
@@ -424,7 +427,7 @@ class AS7341:
             # print("Flicker measurement not completed")
             sleep_ms(100)
         else:                               # timeout
-            print("Flicker measurement failed")
+            print("Flicker measurement timed out")
             return 0
         for _ in range(10):                 # limited wait for calculation
             fd_status = self.__read_byte(AS7341_FD_STATUS)
@@ -434,7 +437,7 @@ class AS7341:
             # print("Flicker calculation not completed")
             sleep_ms(100)
         else:                               # timeout
-            print("Flicker frequency calculation failed")
+            print("Flicker frequency calculation timed out")
             return 0
         # print("FD_STATUS", "0x{:02X}".format(fd_status))
         self.set_flicker_detection(False)           # disable
@@ -455,8 +458,8 @@ class AS7341:
             Notes: 1. It seems that GPIO_INV bit must be set
                       together with GPIO_IN_EN.
                       Proof: Use a pull-up resistor between GPIO and 3.3V:
-                       - when program not started GPIO is high
-                       - when program started (GPIO_IN_EN=1) GPIO becomes low
+                       - when program is ot started GPIO is high
+                       - when program is started (GPIO_IN_EN=1) GPIO becomes low
                        - when also GPIO_INV=1 GPIO behaves normally
                       Maybe it is a quirk of the used test-board.
                    2. GPIO output is not tested
@@ -492,8 +495,8 @@ class AS7341:
 
 
     def get_integration_time(self):
-        """ return actual total integration time (atime * astep) in msec
-            (valid for SPM and SYNS measurement mode)
+        """ return actual total integration time (atime * astep)
+            in milliseconds (valid with SPM and SYNS measurement mode)
         """
         return ((self.__read_word(AS7341_ASTEP) + 1) *
                 (self.__read_byte(AS7341_ATIME) + 1) * 2.78 / 1000)
@@ -519,7 +522,7 @@ class AS7341:
         """
         code = 10
         gain = 512
-        while gain > factor < gain and code > 0:
+        while gain > factor and code > 0:
             gain /= 2
             code -= 1
         # print("factor", factor, "gain", gain, "code", code)
