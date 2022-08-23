@@ -49,4 +49,11 @@ More/better documentation should follow, for now read the comments in the source
   - pinint.py: use pin to trigger read-out
   - syns.py: syns-mode, measurement starts with GPIO transition
 
+
+## Documentation
+
+  - AS7341_AN000666_1-01.pdf - Appplication Note: SMUX Configuration
+  - AS7341_DS000504_3-00.pdf - Datasheet: 11-Channel Multi-Spectral Digital Sensor
+
+
 .
