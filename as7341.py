@@ -386,7 +386,8 @@ class AS7341:
     def get_channel_data(self, channel):
         """ read count of a single channel (channel in range 0..5)
             with or without measurement, just read count of one channel
-            contents depend on previous selection with 'start_measure'
+            return integer value
+            count depends on previous selection with 'start_measure'
             auto-zero feature may result in value 0!
         """
         data = 0                            # default
@@ -462,7 +463,7 @@ class AS7341:
                        - when program is started (GPIO_IN_EN=1) GPIO becomes low
                        - when also GPIO_INV=1 GPIO behaves normally
                       Maybe it is a quirk of the used test-board.
-                   2. GPIO output is not tested
+                   2. GPIO output control is not tested
                       (dataset lacks info how to set/reset GPIO)
         """
         if mode in (0x00,
@@ -476,11 +477,11 @@ class AS7341:
 
 
     def get_gpio_value(self):
-        """ Determine GPIO value (when GPIO enabled for IN_EN)
-            returns 0 (low voltage) or 1 (high voltage)
+        """ Determine GPIO value (provided GPIO is enabled for IN_EN)
+            returns True (high voltage) or False (low voltage)
         """
         # print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
-        return self.__read_byte(AS7341_GPIO_2) & AS7341_GPIO_2_GPIO_IN
+        return bool(self.__read_byte(AS7341_GPIO_2) & AS7341_GPIO_2_GPIO_IN)
 
 
     def set_astep(self, value):

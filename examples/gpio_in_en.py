@@ -6,8 +6,9 @@ from time import sleep_ms
 from machine import I2C, SoftI2C, Pin
 
 # i2c = SoftI2C(scl=Pin(27), sda=Pin(33))
-i2c = I2C(0)#
-print("Detected devices at I2C-addresses:", i2c.scan())
+i2c = I2C(0)
+addrlist = " ".join(["0x{:02X}".format(x) for x in i2c.scan()])
+print("Detected devices at I2C-addresses:", addrlist)
 
 from as7341 import *
 sensor = AS7341(i2c)
