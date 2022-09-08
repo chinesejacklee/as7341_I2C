@@ -507,6 +507,7 @@ class AS7341:
         """ set AGAIN (code in range 0..10 -> gain factor 0.5 .. 512)
             value     0    1    2    3    4    5      6     7      8      9     10
             gain:  *0.5 | *1 | *2 | *4 | *8 | *16 | *32 | *64 | *128 | *256 | *512
+            in other words: gain_factor = 2 ** (value - 1)
         """
         if 0 <= code <= 10:
             self.__write_byte(AS7341_CFG_1, code)
@@ -518,15 +519,12 @@ class AS7341:
 
 
     def set_again_factor(self, factor):
-        """ 'inverse' of 'set_again': gain factor -> code 0 .. 10
+        """ 'inverse' function of 'set_again': gain factor -> code 0 .. 10
             <factor> is rounded down to nearest power of 2 (in range 0.5 .. 512)
         """
-        code = 10
-        gain = 512
-        while gain > factor and code > 0:
-            gain /= 2
-            code -= 1
-        # print("factor", factor, "gain", gain, "code", code)
+        for code in range(10, -1, -1):              # descending range
+            if 2 ** (code - 1) <= factor:
+                break
         self.__write_byte(AS7341_CFG_1, code)
 
 

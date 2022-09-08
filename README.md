@@ -3,7 +3,7 @@
 Micropython driver with:
     Class for AS7341: 11 Channel Multi-Spectral Digital Sensor
 
-Rob Hamerling, Version 0.0, August 2022
+Rob Hamerling, Version 0.0, September 2022
 
 Original by WaveShare for Raspberry Pi, part of:
   https://www.waveshare.com/w/upload/b/b3/AS7341_Spectral_Color_Sensor_code.7z
