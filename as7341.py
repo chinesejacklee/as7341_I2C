@@ -261,27 +261,26 @@ class AS7341:
             Notes: 1. Works only with '1' bits in <mask>
                       (in most cases <mask> contains a single 1-bit!)
                    2. When <reg> is in region 0x60-0x74
-                      bank 1 is supposed be set by caller
+                      bank 1 is supposed be set by caller!
         """
         data = self.__read_byte(reg)    # read <reg>
         if flag:
-            data |= mask
+            data |= mask                # set the bit(s)
         else:
-            data &= (~mask)
+            data &= (~mask)             # reset the bit(s)
         self.__write_byte(reg, data)    # rewrite <reg>
 
 
     def __set_bank(self, bank=1):
         """ select registerbank
-            <bank> 1 for access to regs 0x60-0x74
             <bank> 0 for access to regs 0x80-0xFF
+            <bank> 1 for access to regs 0x60-0x74
             Note: It seems that reg CFG_0 (0x93) is accessible
                   even when REG_BANK bit is set for 0x60-0x74,
                   otherwise it wouldn't be possible to reset REG_BANK
                   Datasheet isn't clear about this.
         """
-        if bank in (0,1):
-            self.__modify_reg(AS7341_CFG_0, AS7341_CFG_0_REG_BANK, bank==1)
+        self.__modify_reg(AS7341_CFG_0, AS7341_CFG_0_REG_BANK, bank!=0)
 
 
     """ ----------- 'public' functions ----------- """
@@ -318,7 +317,7 @@ class AS7341:
             return False
         else:
             if not (id & (~0x03)) == AS7341_ID_VALUE:  # ID in bits 7..2 bits
-                print("No AS7341: ID = 0x{:02X}, expected 0x{:02X}".format(id, AS7341_ID_VALUE))
+                print("No AS7341: found 0x{:02X}, expected 0x{:02X}".format(id, AS7341_ID_VALUE))
                 return False
         self.set_measure_mode(self.__measuremode)   # configure chip
         return True
@@ -452,36 +451,62 @@ class AS7341:
         return 0
 
 
-    def set_gpio_mode(self, mode):
-        """ Configure mode of GPIO pin.
-            Allow only input-enable or output (with or without inverted)
-            specify 0x00 to reset the mode of the GPIO pin.
-            Notes: 1. It seems that GPIO_INV bit must be set
-                      together with GPIO_IN_EN.
-                      Proof: Use a pull-up resistor between GPIO and 3.3V:
-                       - when program is ot started GPIO is high
-                       - when program is started (GPIO_IN_EN=1) GPIO becomes low
-                       - when also GPIO_INV=1 GPIO behaves normally
-                      Maybe it is a quirk of the used test-board.
-                   2. GPIO output control is not tested
-                      (dataset lacks info how to set/reset GPIO)
+    def set_gpio_input(self, enable=True):
+        """ Configure GPIO for input and optionally select
+            input-sensitivity mode of operation:
+            <enable> True: enable input sensitivity, False: disable
+            GPIO pin is open drain: a pull-up resistor is required!
         """
-        if mode in (0x00,
-                    AS7341_GPIO_2_GPIO_OUT,
-                    AS7341_GPIO_2_GPIO_OUT | AS7341_GPIO_2_GPIO_INV,
-                    AS7341_GPIO_2_GPIO_IN_EN,
-                    AS7341_GPIO_2_GPIO_IN_EN | AS7341_GPIO_2_GPIO_INV):
-            if mode == AS7341_GPIO_2_GPIO_IN_EN:    # input mode
-                mode |= AS7341_GPIO_2_GPIO_INV      # add 'inverted'
-            self.__write_byte(AS7341_GPIO_2, mode)
+        mask = AS7341_GPIO_2_GPIO_OUT           # activate GPIO pin
+        if enable:
+            mask |= AS7341_GPIO_2_GPIO_IN_EN    # set input sensitivity
+        self.__write_byte(AS7341_GPIO_2, mask)
+        # print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
 
 
     def get_gpio_value(self):
-        """ Determine GPIO value (provided GPIO is enabled for IN_EN)
+        """ Determine GPIO value while in input mode and input sensitivity enabled
             returns True (high voltage) or False (low voltage)
         """
         # print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
         return bool(self.__read_byte(AS7341_GPIO_2) & AS7341_GPIO_2_GPIO_IN)
+
+
+    def set_gpio_output(self, inverted=False):
+        """ Set GPIO pin for output.
+            GPIO pin is open drain: when you want to control a LED
+            the cathode of the LED should be connected to the GPIO
+            pin, the anode of the LED via a resistor to +Vcc (+3.3V).
+            Maximum allowed current 20 mA!
+            The LED can be switched on and off by switching
+            <inverted> between False and True.
+            <inverted> False: normal mode, True: inverted mode
+        """
+        mask = 0x00                         # reset all bits -> GPIO_OUT
+        if inverted:
+            mask |= AS7341_GPIO_2_GPIO_INV
+        self.__write_byte(AS7341_GPIO_2, mask)
+        # print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
+
+
+    def set_gpio_invert(self, flag=True):
+        """ Invert GPIO pin behaviour while in output mode
+            <flag> True: inverted mode (LED off), False: normal mode (LED on)
+            When a LED is connected: True: LED off, False: LED on
+        """
+        self.__modify_reg(AS7341_GPIO_2, AS7341_GPIO_2_GPIO_INV, flag)
+        # print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
+
+
+    def set_gpio_mask(self, mask=0x00):
+        """ Raw GPIO control: mask is directly written to GPIO 2
+            Examples of meaningful masks:
+            0x00 - GPIO in output mode: LED on
+            0x08 - GPIO in output mode: LED off
+            0x06 - GPIO in input mode and input-sensitivity enabled
+        """
+        self.__write_byte(AS7341_GPIO_2, mask)
+        print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
 
 
     def set_astep(self, value):
@@ -505,9 +530,9 @@ class AS7341:
 
     def set_again(self, code):
         """ set AGAIN (code in range 0..10 -> gain factor 0.5 .. 512)
-            value     0    1    2    3    4    5      6     7      8      9     10
-            gain:  *0.5 | *1 | *2 | *4 | *8 | *16 | *32 | *64 | *128 | *256 | *512
-            in other words: gain_factor = 2 ** (value - 1)
+            code:    0  1  2  3  4   5   6   7    8    9   10
+            gain:  0.5  1  2  4  8  16  32  64  128  256  512
+            in other words: gain_factor = 2 ** (code - 1)
         """
         if 0 <= code <= 10:
             self.__write_byte(AS7341_CFG_1, code)
@@ -538,12 +563,13 @@ class AS7341:
         self.__modify_reg(AS7341_ENABLE, AS7341_ENABLE_WEN, flag)
 
 
-    def set_wtime(self, wtime):
-        """ set WTIME when auto-re-start is desired (in range 0 .. 0xFF)
-            0 -> 2.78ms, 0xFF -> 711.7 ms
+    def set_wtime(self, code):
+        """ set WTIME when auto-re-start is desired (in range 0 .. 255)
+            wtime = 2.78 * (<code> + 1)
+            0 -> 2.78, 255 -> 711.7 ms
             Note: The WEN bit in ENABLE should be set as well: set_wen()
         """
-        self.__write_byte(AS7341_WTIME, wtime)
+        self.__write_byte(AS7341_WTIME, code)
 
 
     def set_led_current(self, current):
@@ -613,7 +639,10 @@ class AS7341:
 
 
     def set_syns_int(self):
-        """ select SYNS mode and signal SYNS interrupt on Pin INT """
+        """ select SYNS mode and signal SYNS interrupt on Pin INT
+            Pin INT is open drain outout: a pull-up may be required
+            for signalling an external device.
+        """
         self.__set_bank(1)                  # CONFIG register is in bank 1
         self.__write_byte(AS7341_CONFIG, AS7341_CONFIG_INT_SEL | AS7341_CONFIG_INT_MODE_SYNS)
         self.__set_bank(0)
