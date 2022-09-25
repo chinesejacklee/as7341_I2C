@@ -13,7 +13,7 @@ print("Detected devices at I2C-addresses:", addrlist)
 from as7341 import *
 sensor = AS7341(i2c)
 
-sensor.set_gpio_mode(AS7341_GPIO_2_GPIO_IN_EN)  # enable input mode
+sensor.set_gpio_input(True)     # enable input mode
 
 try:
     while True:

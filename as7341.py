@@ -375,7 +375,7 @@ class AS7341:
         elif self.__measuremode == AS7341_CONFIG_INT_MODE_SYNS:
             self.channel_select(selection)
             self.set_smux(True)
-            self.set_gpio_mode(AS7341_GPIO_2_GPIO_IN_EN)
+            self.set_gpio_input(True)
         self.set_spectral_measurement(True)
         if self.__measuremode == AS7341_CONFIG_INT_MODE_SPM:
             while not self.measurement_completed():
