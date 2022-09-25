@@ -25,7 +25,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-Rob Hamerling, Version 0.0, August 2022
+Rob Hamerling, Version 0.0, October 2022
 
  Original by WaveShare for Raspberry Pi, part of:
     https://www.waveshare.com/w/upload/b/b3/AS7341_Spectral_Color_Sensor_code.7z
@@ -173,7 +173,6 @@ class AS7341:
 
     def __init__(self, i2c, addr=AS7341_I2C_ADDRESS):
         """ specification of active I2C object is mandatory
-            specification of I2C address of AS7341 is optional
         """
         self.__bus = i2c
         self.__address = addr
@@ -187,7 +186,7 @@ class AS7341:
     """ --------- 'private' functions ----------- """
 
     def __read_byte(self, reg):
-        """ read byte, return byte (integer) value """
+        """ read byte, return integer value """
         try:
             self.__bus.readfrom_mem_into(self.__address, reg, self.__buffer1)
             return self.__buffer1[0]                    # return integer value
@@ -207,7 +206,11 @@ class AS7341:
 
 
     def __read_all_channels(self):
-        """ read ASTATUS register and all channels, return list of 6 integer values """
+        """ read ASTATUS register and all channels, return list of 6 integer values
+            Note: Reading ASTATUS latches the channel counts, which ensures that
+                  the count values of the channels are concurrent.
+                  ASTATUS itself is not returned!
+        """
         try:
             self.__bus.readfrom_mem_into(self.__address, AS7341_ASTATUS, self.__buffer13)
             return [int.from_bytes(self.__buffer13[1 + 2*i : 3 + 2*i], 'little') for i in range(6)]
@@ -233,10 +236,10 @@ class AS7341:
             to adresses <reg> + 0 and <reg> + 1
         """
         self.__buffer2[0] = (value & 0xFF)          # low byte
-        self.__buffer2[1] = (value >> 8) & 0xFF     # high byte
+        self.__buffer2[1] = ((value >> 8) & 0xFF)   # high byte
         try:
             self.__bus.writeto_mem(self.__address, reg, self.__buffer2)
-            sleep_ms(20)
+            sleep_ms(20)                            #
         except Exception as err:
             print("I2C write_word at 0x{:02X}, error".format(reg), err)
             return False
@@ -298,11 +301,6 @@ class AS7341:
         self.__write_byte(AS7341_ENABLE, 0x00)  # power off
 
 
-    def isconnected(self):
-        """ determine if AS7341 is successfully initialized (True/False) """
-        return self.__connected
-
-
     def reset(self):
         """ Cycle power and check if AS7341 is (re-)connected
             When connected set (restore) measurement mode
@@ -323,18 +321,23 @@ class AS7341:
         return True
 
 
+    def isconnected(self):
+        """ determine if AS7341 is successfully initialized (True/False) """
+        return self.__connected
+
+
     def measurement_completed(self):
-        """ check if measurement completed (return True) or otherwise return False """
+        """ check if measurement completed (return True), otherwise return False """
         return bool(self.__read_byte(AS7341_STATUS_2) & AS7341_STATUS_2_AVALID)
 
 
     def set_spectral_measurement(self, flag=True):
-        """ enable (flag == True) spectral measurement or otherwise disable it """
+        """ enable (flag == True) spectral measurement, otherwise disable it """
         self.__modify_reg(AS7341_ENABLE, AS7341_ENABLE_SP_EN, flag)
 
 
     def set_smux(self, flag=True):
-        """ enable (flag == True) SMUX or otherwise disable it """
+        """ enable (flag == True) SMUX, otherwise disable it """
         self.__modify_reg(AS7341_ENABLE, AS7341_ENABLE_SMUXEN, flag)
 
 
@@ -452,7 +455,7 @@ class AS7341:
 
 
     def set_gpio_input(self, enable=True):
-        """ Configure GPIO for input and optionally select
+        """ Configure GPIO for input and select
             input-sensitivity mode of operation:
             <enable> True: enable input sensitivity, False: disable
             GPIO pin is open drain: a pull-up resistor is required!
@@ -465,8 +468,9 @@ class AS7341:
 
 
     def get_gpio_value(self):
-        """ Determine GPIO value while in input mode and input sensitivity enabled
-            returns True (high voltage) or False (low voltage)
+        """ Determine GPIO value.
+            Returns True (high voltage) or False (low voltage)
+            Meaningful only while in input mode and input sensitivity is enabled!
         """
         # print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
         return bool(self.__read_byte(AS7341_GPIO_2) & AS7341_GPIO_2_GPIO_IN)
@@ -474,13 +478,14 @@ class AS7341:
 
     def set_gpio_output(self, inverted=False):
         """ Set GPIO pin for output.
+            <inverted> False: normal mode, True: inverted mode
             GPIO pin is open drain: when you want to control a LED
             the cathode of the LED should be connected to the GPIO
             pin, the anode of the LED via a resistor to +Vcc (+3.3V).
             Maximum allowed current 20 mA!
-            The LED can be switched on and off by switching
-            <inverted> between False and True.
-            <inverted> False: normal mode, True: inverted mode
+            The LED will be switched on when <inverted> is False,
+            can be switched off by setting <inverted> True.
+            See also the 'set_gpio_inverted' function.
         """
         mask = 0x00                         # reset all bits -> GPIO_OUT
         if inverted:
@@ -489,7 +494,7 @@ class AS7341:
         # print("GPIO_2 = 0x{:02X}".format(self.__read_byte(AS7341_GPIO_2)))
 
 
-    def set_gpio_invert(self, flag=True):
+    def set_gpio_inverted(self, flag=True):
         """ Invert GPIO pin behaviour while in output mode
             <flag> True: inverted mode (LED off), False: normal mode (LED on)
             When a LED is connected: True: LED off, False: LED on
@@ -499,7 +504,7 @@ class AS7341:
 
 
     def set_gpio_mask(self, mask=0x00):
-        """ Raw GPIO control: mask is directly written to GPIO 2
+        """ Raw GPIO control: mask is directly written to register GPIO 2
             Examples of meaningful masks:
             0x00 - GPIO in output mode: LED on
             0x08 - GPIO in output mode: LED off
