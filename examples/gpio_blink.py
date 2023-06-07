@@ -30,6 +30,7 @@ try:
 except KeyboardInterrupt:
     print("Interrupted from keyboard")
 
+sensor.set_gpio_input()       # disable output: LED off
 sensor.disable()
 
 #
