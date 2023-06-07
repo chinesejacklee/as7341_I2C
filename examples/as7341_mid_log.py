@@ -25,7 +25,7 @@ LOCALTIMEOFFSET = const(7200)               # Central Europe: 1 hour later than 
                                             # daylight savings time: 2 hours later than UTC
 #  create name for the logfile (with date/time)
 logfmt = "AS7341_{:02d}{:02d}{:02d}_{:02d}{:02d}{:02d}.log"
-YY, MM, DD, hh, mm, ss, _, _ = time.localtime(time.time() + LOCALTIMEOFFSET)
+YY, MM, DD, hh, mm, ss, _, _ = time.gmtime(time.time() + LOCALTIMEOFFSET)
 logfile = logfmt.format(YY-2000, MM, DD, hh, mm, ss)
 print("Logging to file", logfile)
 flog = open(logfile, "w")               #  start logging
@@ -59,7 +59,7 @@ fmt = { "f1" : 'F1 (405-425nm): {:d}',
       }
 
 def logtime(flog):
-    _, _, _, hh, mm, ss, _, _ = time.localtime(time.time() + LOCALTIMEOFFSET)
+    _, _, _, hh, mm, ss, _, _ = time.gmtime(time.time() + LOCALTIMEOFFSET)
     flog.write("\n   {:02d}:{:02d}:{:02d}\n".format(hh,mm,ss))
 
 def p(f, v, log):

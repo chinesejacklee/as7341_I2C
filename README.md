@@ -3,7 +3,7 @@
 Micropython driver with:
     Class for AS7341: 11 Channel Multi-Spectral Digital Sensor
 
-Rob Hamerling, Version 0.0, September 2022
+Rob Hamerling, Version 0.1, June 2023
 
 Original by WaveShare for Raspberry Pi, part of:
   https://www.waveshare.com/w/upload/b/b3/AS7341_Spectral_Color_Sensor_code.7z
@@ -41,7 +41,8 @@ More/better documentation should follow, for now read the comments in the source
 
 ## Examples
 
-  - all_channels.py: read whole range of channels
+  - as7341_all.py: read several ranges channels
+  - as7341_mid_log.py: read middle range channels, log the counts
   - flicker.py: read flicker
   - gpio_in_en.py: show use of GPIO pin for input
   - interrupt.py: use of interrupt pin
