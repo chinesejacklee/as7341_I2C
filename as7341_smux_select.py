@@ -32,9 +32,10 @@ THE SOFTWARE.
     The Application Note can be found in one of the evaluation packages, e.g.
     AS7341_EvalSW_Reflection_v1-26-3/Documents/application notes/SMUX/
 
-    This file should be imported by AS7341.py with:
-        from as7341_smux_select import *
+    This file is imported by AS7341.py with:
+        import as7341_smux_select
 """
+
 AS7341_SMUX_SELECT = {
     # F1 through F4, CLEAR, NIR:
     "F1F4CN": b'\x30\x01\x00\x00\x00\x42\x00\x00\x50\x00\x00\x00\x20\x04\x00\x30\x01\x50\x00\x06',
@@ -42,6 +43,8 @@ AS7341_SMUX_SELECT = {
     "F5F8CN": b'\x00\x00\x00\x40\x02\x00\x10\x03\x50\x10\x03\x00\x00\x00\x24\x00\x00\x50\x00\x06',
     # F2 through F7:
     "F2F7":   b'\x20\x00\x00\x00\x05\x31\x40\x06\x00\x40\x06\x00\x10\x03\x50\x20\x00\x00\x00\x00',
+    # F3 through F8:
+    "F3F8":   b'\x10\x00\x00\x60\x04\x20\x30\x05\x00\x30\x05\x00\x00\x02\x46\x10\x00\x00\x00\x00',
     # Flicker Detection only:
     "FD":     b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x60',
     }

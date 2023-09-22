@@ -3,7 +3,7 @@
 Micropython driver with:
     Class for AS7341: 11 Channel Multi-Spectral Digital Sensor
 
-Rob Hamerling, Version 0.1, June 2023
+Rob Hamerling, Version 0.3, June 2023
 
 Original by WaveShare for Raspberry Pi, part of:
   https://www.waveshare.com/w/upload/b/b3/AS7341_Spectral_Color_Sensor_code.7z
@@ -55,6 +55,14 @@ More/better documentation should follow, for now read the comments in the source
 
   - AS7341_AN000666_1-01.pdf - Appplication Note: SMUX Configuration
   - AS7341_DS000504_3-00.pdf - Datasheet: 11-Channel Multi-Spectral Digital Sensor
+
+
+## Summary of changes
+
+  - 0.1 Improved several 'get' members: return actual device settings
+  - 0.2 Removed superfluous instance variables (atime,astep,again)
+  - 0.3 Renamed hidden class variables and members:
+        single underscore prefix in stead of double underscore.
 
 
 .
